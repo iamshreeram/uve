@@ -59,12 +59,11 @@ jobs:
 
       - name: Package release assets
         run: |
-          cd dist
-          tar czf uve-linux-amd64.tar.gz uve-linux-amd64
-          tar czf uve-darwin-amd64.tar.gz uve-darwin-amd64
-          tar czf uve-darwin-arm64.tar.gz uve-darwin-arm64
-          zip uve-windows-amd64.zip uve-windows-amd64.exe
-          rm uve-*  # Clean up raw binaries
+          tar czf dist/uve-linux-amd64.tar.gz -C dist uve-linux-amd64
+          tar czf dist/uve-darwin-amd64.tar.gz -C dist uve-darwin-amd64
+          tar czf dist/uve-darwin-arm64.tar.gz -C dist uve-darwin-arm64
+          zip dist/uve-windows-amd64.zip dist/uve-windows-amd64.exe
+          rm dist/uve-linux-amd64 dist/uve-darwin-amd64 dist/uve-darwin-arm64 dist/uve-windows-amd64.exe
 
       - name: Create install script
         run: |
