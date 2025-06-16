@@ -2,23 +2,25 @@ name: Auto Release
 
 on:
   push:
-    # Remove 'branches' to trigger on any push to any branch.
-    # If you want only 'main', keep as before.
+    # Uncomment below to only release on main
     # branches:
     #   - main
 
 permissions:
-  contents: write  # Required for pushing tags and creating releases
+  contents: write
 
 jobs:
   build-and-release:
     runs-on: ubuntu-latest
 
+    outputs:
+      NEW_VERSION: ${{ steps.version.outputs.NEW_VERSION }}
+
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
         with:
-          fetch-depth: 0  # Required to fetch tags
+          fetch-depth: 0
 
       - name: Set up Go
         uses: actions/setup-go@v4
@@ -28,15 +30,12 @@ jobs:
       - name: Determine next version
         id: version
         run: |
-          # Get latest tag (default to v0.0.0 if none)
           LAST_TAG=$(git describe --tags --abbrev=0 2>/dev/null || echo "v0.0.0")
           echo "Last tag: $LAST_TAG"
-          # Extract major, minor, patch using regex
           VERSION_PARTS=(${LAST_TAG//./ })
           MAJOR=$(echo ${VERSION_PARTS[0]} | sed 's/v//')
           MINOR=${VERSION_PARTS[1]}
           PATCH=${VERSION_PARTS[2]}
-          # Bump patch version (change this logic for major/minor)
           NEW_PATCH=$((PATCH + 1))
           NEW_VERSION="v$MAJOR.$MINOR.$NEW_PATCH"
           echo "NEW_VERSION=$NEW_VERSION" >> $GITHUB_OUTPUT
@@ -53,7 +52,7 @@ jobs:
         run: |
           mkdir -p dist
           GOOS=linux GOARCH=amd64 go build -ldflags="-s -w" -o dist/uve-linux-amd64
-          GOOS=darwin GOARCH=amd64 go build -ldflags="-s -w" -o dist/uve-darwin-amd64 
+          GOOS=darwin GOARCH=amd64 go build -ldflags="-s -w" -o dist/uve-darwin-amd64
           GOOS=darwin GOARCH=arm64 go build -ldflags="-s -w" -o dist/uve-darwin-arm64
           GOOS=windows GOARCH=amd64 go build -ldflags="-s -w" -o dist/uve-windows-amd64.exe
 
@@ -65,15 +64,69 @@ jobs:
           zip dist/uve-windows-amd64.zip dist/uve-windows-amd64.exe
           rm dist/uve-linux-amd64 dist/uve-darwin-amd64 dist/uve-darwin-arm64 dist/uve-windows-amd64.exe
 
-      - name: Copy uve install script
+      - name: Copy install script
         run: |
           cp uve-install.sh dist/uve-install.sh
           chmod +x dist/uve-install.sh
 
+      - name: Upload dist as artifact for validation jobs
+        uses: actions/upload-artifact@v4
+        with:
+          name: dist
+          path: dist/
+
+  validate-install:
+    needs: build-and-release
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        os: [ubuntu-latest, macos-latest]
+        shell: [bash, sh, zsh]
+        include:
+          - os: ubuntu-latest
+            install_shells: sudo apt-get update && sudo apt-get install -y zsh fish
+            fish: true
+          - os: macos-latest
+            install_shells: brew install zsh fish
+            fish: true
+    steps:
+      - name: Prepare shells
+        if: matrix.install_shells != ''
+        run: ${{ matrix.install_shells }}
+
+      - name: Download build artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: dist
+          path: dist
+
+      - name: Validate install in ${{ matrix.shell }}
+        run: |
+          export HOME="$(mktemp -d)"
+          ${{ matrix.shell }} dist/uve-install.sh
+          ~/.local/bin/uve --version
+
+      - name: Validate install in fish
+        if: matrix.fish
+        run: |
+          export HOME="$(mktemp -d)"
+          fish -c "bash dist/uve-install.sh"
+          ~/.local/bin/uve --version
+
+  create-release:
+    needs: [build-and-release, validate-install]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Download dist artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: dist
+          path: dist
+
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v1
         with:
-          tag_name: ${{ steps.version.outputs.NEW_VERSION }}
+          tag_name: ${{ needs.build-and-release.outputs.NEW_VERSION }}
           files: |
             dist/*.tar.gz
             dist/*.zip
