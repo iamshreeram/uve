@@ -1,21 +1,88 @@
 name: Auto Release
 
 on:
+  pull_request:
+    branches:
+      - main
+    types: [opened, synchronize, reopened]
+    paths-ignore: []
+    # Only trigger validation for PRs from feature/* branches
+    # This filter is handled in the job using if: startsWith(github.head_ref, 'feature/')
   push:
-    # Uncomment below to only release on main
-    # branches:
-    #   - main
+    branches:
+      - main  # Trigger release when code is merged to main
 
 permissions:
   contents: write
 
 jobs:
-  build-and-release:
+  build-and-validate:
+    if: |
+      github.event_name == 'pull_request' && startsWith(github.head_ref, 'feature/')
     runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        shell: [bash, sh, zsh, fish]
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
 
+      - name: Set up Go
+        uses: actions/setup-go@v4
+        with:
+          go-version: '1.21'
+
+      - name: Build binaries
+        run: |
+          mkdir -p dist
+          GOOS=linux GOARCH=amd64 go build -ldflags="-s -w" -o dist/uve-linux-amd64
+          GOOS=darwin GOARCH=amd64 go build -ldflags="-s -w" -o dist/uve-darwin-amd64
+          GOOS=darwin GOARCH=arm64 go build -ldflags="-s -w" -o dist/uve-darwin-arm64
+          GOOS=windows GOARCH=amd64 go build -ldflags="-s -w" -o dist/uve-windows-amd64.exe
+
+      - name: Package release assets
+        run: |
+          tar czf dist/uve-linux-amd64.tar.gz -C dist uve-linux-amd64
+          tar czf dist/uve-darwin-amd64.tar.gz -C dist uve-darwin-amd64
+          tar czf dist/uve-darwin-arm64.tar.gz -C dist uve-darwin-arm64
+          zip dist/uve-windows-amd64.zip dist/uve-windows-amd64.exe
+          rm dist/uve-linux-amd64 dist/uve-darwin-amd64 dist/uve-darwin-arm64 dist/uve-windows-amd64.exe
+
+      - name: Copy install script
+        run: |
+          cp uve-install.sh dist/uve-install.sh
+          chmod +x dist/uve-install.sh
+
+      - name: Install zsh if needed
+        if: matrix.shell == 'zsh'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y zsh
+
+      - name: Install fish if needed
+        if: matrix.shell == 'fish'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y fish
+
+      - name: Validate install in ${{ matrix.shell }}
+        run: |
+          export HOME="$(mktemp -d)"
+          if [ "${{ matrix.shell }}" = "fish" ]; then
+            fish -c "bash dist/uve-install.sh"
+          else
+            ${{ matrix.shell }} dist/uve-install.sh
+          fi
+          ~/.local/bin/uve --version
+
+  release:
+    if: |
+      github.event_name == 'push' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
     outputs:
       NEW_VERSION: ${{ steps.version.outputs.NEW_VERSION }}
-
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -75,46 +142,47 @@ jobs:
           name: dist
           path: dist/
 
-  validate-install:
-    needs: build-and-release
-    runs-on: ${{ matrix.os }}
+  validate-release-shells:
+    if: |
+      github.event_name == 'push' && github.ref == 'refs/heads/main'
+    needs: release
+    runs-on: ubuntu-latest
     strategy:
       matrix:
-        os: [ubuntu-latest, macos-latest]
-        shell: [bash, sh, zsh]
-        include:
-          - os: ubuntu-latest
-            install_shells: sudo apt-get update && sudo apt-get install -y zsh fish
-            fish: true
-          - os: macos-latest
-            install_shells: brew install zsh fish
-            fish: true
+        shell: [bash, sh, zsh, fish]
     steps:
-      - name: Prepare shells
-        if: matrix.install_shells != ''
-        run: ${{ matrix.install_shells }}
-
       - name: Download build artifact
         uses: actions/download-artifact@v4
         with:
           name: dist
           path: dist
 
+      - name: Install zsh if needed
+        if: matrix.shell == 'zsh'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y zsh
+
+      - name: Install fish if needed
+        if: matrix.shell == 'fish'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y fish
+
       - name: Validate install in ${{ matrix.shell }}
         run: |
           export HOME="$(mktemp -d)"
-          ${{ matrix.shell }} dist/uve-install.sh
-          ~/.local/bin/uve --version
-
-      - name: Validate install in fish
-        if: matrix.fish
-        run: |
-          export HOME="$(mktemp -d)"
-          fish -c "bash dist/uve-install.sh"
+          if [ "${{ matrix.shell }}" = "fish" ]; then
+            fish -c "bash dist/uve-install.sh"
+          else
+            ${{ matrix.shell }} dist/uve-install.sh
+          fi
           ~/.local/bin/uve --version
 
   create-release:
-    needs: [build-and-release, validate-install]
+    if: |
+      github.event_name == 'push' && github.ref == 'refs/heads/main'
+    needs: [release, validate-release-shells]
     runs-on: ubuntu-latest
     steps:
       - name: Download dist artifact
@@ -126,7 +194,7 @@ jobs:
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v1
         with:
-          tag_name: ${{ needs.build-and-release.outputs.NEW_VERSION }}
+          tag_name: ${{ needs.release.outputs.NEW_VERSION }}
           files: |
             dist/*.tar.gz
             dist/*.zip
