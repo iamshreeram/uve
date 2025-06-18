@@ -49,3 +49,6 @@ uv pip install numpy pandas
 # Verify
 python -c "import numpy; print(numpy.__version__)"
 ```
+
+### Future 
+1. Clone environment
