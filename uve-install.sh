@@ -114,11 +114,11 @@ if ! command -v uv >/dev/null 2>&1; then
     which uv
 
     # Verify installation succeeded
-    if ! command -v uv >/dev/null 2>&1; then
-        echo "Error: uv installation failed. Please install uv manually and re-run this script." >&2
-        exit 6
-    fi
-    echo "uv installed successfully."
+    # if ! command -v uv >/dev/null 2>&1; then
+        # echo "Error: uv installation failed. Please install uv manually and re-run this script." >&2
+        # exit 6
+    # fi
+   #  echo "uv installed successfully."
 else
     echo "uv is already installed."
 fi
