@@ -36,12 +36,6 @@ jobs:
 
       - name: Add ~/.local/bin to PATH for this job
         run: echo "$HOME/.local/bin" >> $GITHUB_PATH
-
-      - name: Set Python's bin to PATH
-        run: |
-          export USER_BASE=$(python3 -m site --user-base)
-          export BIN_PATH="$USER_BASE/bin"
-          echo "$BIN_PATH" >> $GITHUB_PATH
         
       - name: Install test shell if needed
         if: env.TEST_SHELL == 'zsh'
@@ -78,10 +72,10 @@ jobs:
       - name: Validate install in ${{ env.TEST_SHELL }}
         run: |
           export HOME="$(mktemp -d)"
+          echo "$HOME/.local/bin" >> $GITHUB_PATH
           ${{ env.TEST_SHELL }} dist/uve-install.sh
           echo "Script is complete. Moving to validation of uve"
-          ~/.local/bin/uve version
-
+          uve version
   release:
     if: |
       github.event_name == 'push' && github.ref == 'refs/heads/main'
