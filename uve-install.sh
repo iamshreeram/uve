@@ -110,9 +110,6 @@ if ! command -v uv >/dev/null 2>&1; then
         fi
     fi
 
-    pip3 show uv
-    which uv
-
     # Verify installation succeeded
     # if ! command -v uv >/dev/null 2>&1; then
         # echo "Error: uv installation failed. Please install uv manually and re-run this script." >&2
