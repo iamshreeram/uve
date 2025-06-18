@@ -1,4 +1,4 @@
-name: Auto Release
+name: Release
 
 on:
   pull_request:
@@ -25,51 +25,59 @@ jobs:
           fetch-depth: 0
 
       - name: Set up Go
-        uses: actions/setup-go@v4
+        uses: actions/setup-go@v5
         with:
           go-version: '1.21'
 
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Add ~/.local/bin to PATH for this job
+        run: echo "$HOME/.local/bin" >> $GITHUB_PATH
+
       - name: Install test shell if needed
         if: env.TEST_SHELL == 'zsh'
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y zsh
+        run: sudo apt-get update && sudo apt-get install -y zsh
 
       - name: Build binaries
         run: |
-          export CGO_ENABLED=0
-          mkdir -p dist
-          echo "Building for linux/amd64"
-          GOOS=linux GOARCH=amd64 go build -ldflags="-s -w" -o dist/uve-linux-amd64
-          echo "Building for darwin/amd64"
-          GOOS=darwin GOARCH=amd64 go build -ldflags="-s -w" -o dist/uve-darwin-amd64
-          echo "Building for darwin/arm64"
-          GOOS=darwin GOARCH=arm64 go build -ldflags="-s -w" -o dist/uve-darwin-arm64
-          echo "Building for windows/amd64"
-          GOOS=windows GOARCH=amd64 go build -ldflags="-s -w" -o dist/uve-windows-amd64.exe
+          set -eux
+          CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -o uve-linux-amd64 main.go
+          CGO_ENABLED=0 GOOS=darwin GOARCH=amd64 go build -o uve-darwin-amd64 main.go
+          CGO_ENABLED=0 GOOS=darwin GOARCH=arm64 go build -o uve-darwin-arm64 main.go
+          CGO_ENABLED=0 GOOS=windows GOARCH=amd64 go build -o uve-windows-amd64.exe main.go
 
       - name: Package release assets
         run: |
-          tar czf dist/uve-linux-amd64.tar.gz -C dist uve-linux-amd64
-          tar czf dist/uve-darwin-amd64.tar.gz -C dist uve-darwin-amd64
-          tar czf dist/uve-darwin-arm64.tar.gz -C dist uve-darwin-arm64
-          zip dist/uve-windows-amd64.zip dist/uve-windows-amd64.exe
-          rm dist/uve-linux-amd64 dist/uve-darwin-amd64 dist/uve-darwin-arm64 dist/uve-windows-amd64.exe
+          set -eux
+          mkdir -p dist
+          tar -czf dist/uve-linux-amd64.tar.gz uve-linux-amd64
+          tar -czf dist/uve-macos-amd64.tar.gz uve-darwin-amd64
+          tar -czf dist/uve-macos-arm64.tar.gz uve-darwin-arm64
+          zip dist/uve-windows-amd64.zip uve-windows-amd64.exe
 
       - name: Copy install script
         run: |
-          cp uve-install.sh dist/uve-install.sh
-          chmod +x dist/uve-install.sh
+          cp uve-install.sh dist/
 
-      - name: Validate install in ${{ env.TEST_SHELL }}
+      - name: Validate install in chosen shell
         run: |
-          export HOME="$(mktemp -d)"
-          ${{ env.TEST_SHELL }} dist/uve-install.sh
-          ~/.local/bin/uve version
+          set -eux
+          TEMP_HOME=$(mktemp -d)
+          export HOME="$TEMP_HOME"
+          export PATH="$HOME/.local/bin:$PATH"
+          if [ "${TEST_SHELL}" = "zsh" ]; then
+            zsh dist/uve-install.sh
+            ~/.local/bin/uve --version
+          else
+            bash dist/uve-install.sh
+            ~/.local/bin/uve --version
+          fi
 
   release:
-    if: |
-      github.event_name == 'push' && github.ref == 'refs/heads/main'
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
     outputs:
       NEW_VERSION: ${{ steps.version.outputs.NEW_VERSION }}
@@ -80,62 +88,66 @@ jobs:
           fetch-depth: 0
 
       - name: Set up Go
-        uses: actions/setup-go@v4
+        uses: actions/setup-go@v5
         with:
           go-version: '1.21'
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Add ~/.local/bin to PATH for this job
+        run: echo "$HOME/.local/bin" >> $GITHUB_PATH
 
       - name: Determine next version
         id: version
         run: |
-          LAST_TAG=$(git describe --tags --abbrev=0 2>/dev/null || echo "v0.0.0")
-          echo "Last tag: $LAST_TAG"
-          VERSION_PARTS=(${LAST_TAG//./ })
-          MAJOR=$(echo ${VERSION_PARTS[0]} | sed 's/v//')
-          MINOR=${VERSION_PARTS[1]}
-          PATCH=${VERSION_PARTS[2]}
-          NEW_PATCH=$((PATCH + 1))
-          NEW_VERSION="v$MAJOR.$MINOR.$NEW_PATCH"
-          echo "NEW_VERSION=$NEW_VERSION" >> $GITHUB_OUTPUT
-          echo "New version will be: $NEW_VERSION"
+          set -eux
+          LATEST_TAG=$(git tag --sort=-creatordate | grep '^v' | head -n1 || echo "v0.0.0")
+          MAJOR=$(echo "${LATEST_TAG}" | cut -d. -f1 | tr -d v)
+          MINOR=$(echo "${LATEST_TAG}" | cut -d. -f2)
+          PATCH=$(echo "${LATEST_TAG}" | cut -d. -f3)
+          if [ -z "${PATCH}" ]; then PATCH=0; fi
+          NEW_VERSION="v${MAJOR}.${MINOR}.$((PATCH+1))"
+          echo "NEW_VERSION=${NEW_VERSION}" >> "$GITHUB_OUTPUT"
 
       - name: Create and push tag
         run: |
-          git config user.name "github-actions"
-          git config user.email "github-actions@github.com"
-          git tag ${{ steps.version.outputs.NEW_VERSION }}
-          git push origin ${{ steps.version.outputs.NEW_VERSION }}
+          git config user.name "GitHub Actions"
+          git config user.email "actions@github.com"
+          git tag "${{ steps.version.outputs.NEW_VERSION }}"
+          git push origin "${{ steps.version.outputs.NEW_VERSION }}"
 
       - name: Build binaries
         run: |
-          export CGO_ENABLED=0
-          mkdir -p dist
-          GOOS=linux GOARCH=amd64 go build -ldflags="-s -w" -o dist/uve-linux-amd64
-          GOOS=darwin GOARCH=amd64 go build -ldflags="-s -w" -o dist/uve-darwin-amd64
-          GOOS=darwin GOARCH=arm64 go build -ldflags="-s -w" -o dist/uve-darwin-arm64
-          GOOS=windows GOARCH=amd64 go build -ldflags="-s -w" -o dist/uve-windows-amd64.exe
+          set -eux
+          CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -o uve-linux-amd64 main.go
+          CGO_ENABLED=0 GOOS=darwin GOARCH=amd64 go build -o uve-darwin-amd64 main.go
+          CGO_ENABLED=0 GOOS=darwin GOARCH=arm64 go build -o uve-darwin-arm64 main.go
+          CGO_ENABLED=0 GOOS=windows GOARCH=amd64 go build -o uve-windows-amd64.exe main.go
 
       - name: Package release assets
         run: |
-          tar czf dist/uve-linux-amd64.tar.gz -C dist uve-linux-amd64
-          tar czf dist/uve-darwin-amd64.tar.gz -C dist uve-darwin-amd64
-          tar czf dist/uve-darwin-arm64.tar.gz -C dist uve-darwin-arm64
-          zip dist/uve-windows-amd64.zip dist/uve-windows-amd64.exe
-          rm dist/uve-linux-amd64 dist/uve-darwin-amd64 dist/uve-darwin-arm64 dist/uve-windows-amd64.exe
+          set -eux
+          mkdir -p dist
+          tar -czf dist/uve-linux-amd64.tar.gz uve-linux-amd64
+          tar -czf dist/uve-macos-amd64.tar.gz uve-darwin-amd64
+          tar -czf dist/uve-macos-arm64.tar.gz uve-darwin-arm64
+          zip dist/uve-windows-amd64.zip uve-windows-amd64.exe
 
       - name: Copy install script
         run: |
-          cp uve-install.sh dist/uve-install.sh
-          chmod +x dist/uve-install.sh
+          cp uve-install.sh dist/
 
-      - name: Upload dist as artifact for validation jobs
+      - name: Upload dist as artifact
         uses: actions/upload-artifact@v4
         with:
           name: dist
-          path: dist/
+          path: dist
 
   create-release:
-    if: |
-      github.event_name == 'push' && github.ref == 'refs/heads/main'
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
     needs: [release]
     runs-on: ubuntu-latest
     steps:
@@ -146,11 +158,14 @@ jobs:
           path: dist
 
       - name: Create GitHub Release
-        uses: softprops/action-gh-release@v1
+        uses: softprops/action-gh-release@v2
         with:
           tag_name: ${{ needs.release.outputs.NEW_VERSION }}
-          files: |
-            dist/*.tar.gz
-            dist/*.zip
-            dist/uve-install.sh
+          name: ${{ needs.release.outputs.NEW_VERSION }}
           generate_release_notes: true
+          files: |
+            dist/uve-linux-amd64.tar.gz
+            dist/uve-macos-amd64.tar.gz
+            dist/uve-macos-arm64.tar.gz
+            dist/uve-windows-amd64.zip
+            dist/uve-install.sh
