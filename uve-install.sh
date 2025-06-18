@@ -42,6 +42,36 @@ case $OS in
         echo "Unsupported OS: ${OS}"; exit 1 ;;
 esac
 
+# Ensure ~/.local/bin is in PATH for the user's shell
+if ! echo "$PATH" | grep -q "$HOME/.local/bin" ; then
+    SHELL_NAME="$(basename "${SHELL:-}")"
+    case "$SHELL_NAME" in
+        bash)
+            PROFILE="$HOME/.bashrc"
+            ADD_CMD='export PATH="$HOME/.local/bin:$PATH"'
+            ;;
+        zsh)
+            PROFILE="$HOME/.zshrc"
+            ADD_CMD='export PATH="$HOME/.local/bin:$PATH"'
+            ;;
+        fish)
+            PROFILE="$HOME/.config/fish/config.fish"
+            ADD_CMD='set -gx PATH $HOME/.local/bin $PATH'
+            ;;
+        *)
+            PROFILE="$HOME/.profile"
+            ADD_CMD='export PATH="$HOME/.local/bin:$PATH"'
+            ;;
+    esac
+
+    # Only add if not already present in the config file
+    if [ ! -f "$PROFILE" ] || ! grep -Fq "$ADD_CMD" "$PROFILE"; then
+        echo "$ADD_CMD" >> "$PROFILE"
+        echo "Added ~/.local/bin to PATH in $PROFILE"
+    fi
+    echo "Please restart your shell or run: source $PROFILE"
+fi
+
 # Initialize shell
 echo "Setting up shell integration..."
 if [[ "$OS" == "linux" || "$OS" == "darwin" ]]; then
