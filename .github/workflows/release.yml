@@ -68,14 +68,15 @@ jobs:
         run: |
           cp uve-install.sh dist/uve-install.sh
           chmod +x dist/uve-install.sh
-
+          
       - name: Validate install in ${{ env.TEST_SHELL }}
         run: |
           export HOME="$(mktemp -d)"
-          echo "$HOME/.local/bin" >> $GITHUB_PATH
+          export PATH="$HOME/.local/bin:$PATH"
           ${{ env.TEST_SHELL }} dist/uve-install.sh
           echo "Script is complete. Moving to validation of uve"
           uve version
+
   release:
     if: |
       github.event_name == 'push' && github.ref == 'refs/heads/main'
