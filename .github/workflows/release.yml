@@ -37,6 +37,12 @@ jobs:
       - name: Add ~/.local/bin to PATH for this job
         run: echo "$HOME/.local/bin" >> $GITHUB_PATH
 
+      - name: Set Python's bin to PATH
+        run: |
+          export USER_BASE=$(python3 -m site --user-base)
+          export BIN_PATH="$USER_BASE/bin"
+          echo "$BIN_PATH" >> $GITHUB_PATH
+        
       - name: Install test shell if needed
         if: env.TEST_SHELL == 'zsh'
         run: |
