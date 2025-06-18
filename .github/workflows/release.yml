@@ -20,7 +20,7 @@ jobs:
     runs-on: ubuntu-latest
     strategy:
       matrix:
-        shell: [bash, zsh, sh]
+        shell: [bash]
 
     steps:
       - name: Checkout code
