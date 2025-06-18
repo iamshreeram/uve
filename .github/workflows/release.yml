@@ -65,7 +65,7 @@ jobs:
         run: |
           export HOME="$(mktemp -d)"
           ${{ env.TEST_SHELL }} dist/uve-install.sh
-          ~/.local/bin/uve --version
+          ~/.local/bin/uve version
 
   release:
     if: |
