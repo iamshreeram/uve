@@ -70,10 +70,10 @@ jobs:
           export PATH="$HOME/.local/bin:$PATH"
           if [ "${TEST_SHELL}" = "zsh" ]; then
             zsh dist/uve-install.sh
-            ~/.local/bin/uve --version
+            ~/.local/bin/uve version
           else
             bash dist/uve-install.sh
-            ~/.local/bin/uve --version
+            ~/.local/bin/uve version
           fi
 
   release:
