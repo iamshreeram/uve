@@ -87,7 +87,7 @@ if ! command -v uv >/dev/null 2>&1; then
     echo "uv not found. Installing uv..."
     if command -v pip3 >/dev/null 2>&1; then
         echo "Installing uv using pip3..."
-        if ! pip3 install --upgrade uv; then
+        if ! pip3 install --user uv; then
             echo "Error: pip3 failed to install uv. Please check your Python and pip installation." >&2
             exit 2
         fi
@@ -109,6 +109,9 @@ if ! command -v uv >/dev/null 2>&1; then
             exit 5
         fi
     fi
+
+    pip3 show uv
+    which uv
 
     # Verify installation succeeded
     if ! command -v uv >/dev/null 2>&1; then
