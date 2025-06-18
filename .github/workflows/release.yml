@@ -18,6 +18,10 @@ env:
 jobs:
   build-and-validate:
     runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        shell: [bash, zsh, sh]
+
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -34,11 +38,8 @@ jobs:
         with:
           python-version: '3.11'
 
-      - name: Add ~/.local/bin to PATH for this job
-        run: echo "$HOME/.local/bin" >> $GITHUB_PATH
-        
-      - name: Install test shell if needed
-        if: env.TEST_SHELL == 'zsh'
+      - name: Install ${{ matrix.shell }} if needed
+        if: matrix.shell == 'zsh'
         run: |
           sudo apt-get update
           sudo apt-get install -y zsh
@@ -47,13 +48,9 @@ jobs:
         run: |
           export CGO_ENABLED=0
           mkdir -p dist
-          echo "Building for linux/amd64"
           GOOS=linux GOARCH=amd64 go build -ldflags="-s -w" -o dist/uve-linux-amd64
-          echo "Building for darwin/amd64"
           GOOS=darwin GOARCH=amd64 go build -ldflags="-s -w" -o dist/uve-darwin-amd64
-          echo "Building for darwin/arm64"
           GOOS=darwin GOARCH=arm64 go build -ldflags="-s -w" -o dist/uve-darwin-arm64
-          echo "Building for windows/amd64"
           GOOS=windows GOARCH=amd64 go build -ldflags="-s -w" -o dist/uve-windows-amd64.exe
 
       - name: Package release assets
@@ -68,15 +65,14 @@ jobs:
         run: |
           cp uve-install.sh dist/uve-install.sh
           chmod +x dist/uve-install.sh
-          
-      - name: Validate install in ${{ env.TEST_SHELL }}
+
+      - name: Validate install in ${{ matrix.shell }}
         run: |
           export HOME="$(mktemp -d)"
           export PATH="$HOME/.local/bin:$PATH"
-          ${{ env.TEST_SHELL }} dist/uve-install.sh
+          ${{ matrix.shell }} dist/uve-install.sh
           echo "Script is complete. Moving to validation of uve"
           uve version
-
   release:
     if: |
       github.event_name == 'push' && github.ref == 'refs/heads/main'
