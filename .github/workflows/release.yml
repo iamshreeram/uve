@@ -79,6 +79,7 @@ jobs:
         run: |
           export HOME="$(mktemp -d)"
           ${{ env.TEST_SHELL }} dist/uve-install.sh
+          echo "Script is complete. Moving to validation of uve"
           ~/.local/bin/uve version
 
   release:
