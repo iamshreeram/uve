@@ -50,5 +50,6 @@ uv pip install numpy pandas
 python -c "import numpy; print(numpy.__version__)"
 ```
 
-### Future 
-1. Clone existing environment into new one 
+### Future enhancements
+1. Enable the activation of a new environment without requiring the deactivation of the currently active environment.
+2. Provide functionality to clone or copy an existing environment into a new one, facilitating easier environment management.
