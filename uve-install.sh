@@ -80,6 +80,46 @@ else
     "${BIN_PATH}/uve-bin.exe" init
 fi
 
+# --- Ensure UV is installed ---
+echo "Checking for uv binary..."
+
+if ! command -v uv >/dev/null 2>&1; then
+    echo "uv not found. Installing uv..."
+    if command -v pip3 >/dev/null 2>&1; then
+        echo "Installing uv using pip3..."
+        if ! pip3 install --upgrade uv; then
+            echo "Error: pip3 failed to install uv. Please check your Python and pip installation." >&2
+            exit 2
+        fi
+    else
+        if [[ "$OS" == "darwin" || "$OS" == "linux" ]]; then
+            echo "pip3 not found. Installing uv using official script (curl)..."
+            if ! (curl -LsSf https://astral.sh/uv/install.sh | bash); then
+                echo "Error: Failed to install uv using the official install script." >&2
+                exit 3
+            fi
+        elif [[ "$OS" == "msys"* || "$OS" == "mingw"* || "$OS" == "cygwin"* ]]; then
+            echo "pip3 not found. Installing uv using official PowerShell script..."
+            if ! powershell -NoProfile -Command "irm https://astral.sh/uv/install.ps1 | iex"; then
+                echo "Error: Failed to install uv using the official PowerShell script." >&2
+                exit 4
+            fi
+        else
+            echo "Error: Unable to determine how to install uv on this OS. Please install uv manually." >&2
+            exit 5
+        fi
+    fi
+
+    # Verify installation succeeded
+    if ! command -v uv >/dev/null 2>&1; then
+        echo "Error: uv installation failed. Please install uv manually and re-run this script." >&2
+        exit 6
+    fi
+    echo "uv installed successfully."
+else
+    echo "uv is already installed."
+fi
+
 echo "UVE installed successfully to ${BIN_PATH}"
 if [[ "$OS" == "linux" || "$OS" == "darwin" ]]; then
     echo "Please restart your shell or run: source ~/.bashrc (or equivalent)"
