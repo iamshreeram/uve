@@ -5,9 +5,6 @@ on:
     branches:
       - main
     types: [opened, synchronize, reopened]
-    paths-ignore: []
-    # Only trigger validation for PRs from feature/* branches
-    # This filter is handled in the job using if: startsWith(github.head_ref, 'feature/')
   push:
     branches:
       - main  # Trigger release when code is merged to main
@@ -17,8 +14,6 @@ permissions:
 
 jobs:
   build-and-validate:
-    if: |
-      github.event_name == 'pull_request' && startsWith(github.head_ref, 'feature/')
     runs-on: ubuntu-latest
     strategy:
       matrix:
