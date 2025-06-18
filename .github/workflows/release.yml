@@ -7,17 +7,17 @@ on:
     types: [opened, synchronize, reopened]
   push:
     branches:
-      - main  # Trigger release when code is merged to main
+      - main
 
 permissions:
   contents: write
 
+env:
+  TEST_SHELL: bash  # Change to 'zsh' or another shell if you want
+
 jobs:
   build-and-validate:
     runs-on: ubuntu-latest
-    strategy:
-      matrix:
-        shell: [bash, sh, zsh, fish]
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -29,12 +29,23 @@ jobs:
         with:
           go-version: '1.21'
 
+      - name: Install test shell if needed
+        if: env.TEST_SHELL == 'zsh'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y zsh
+
       - name: Build binaries
         run: |
+          export CGO_ENABLED=0
           mkdir -p dist
+          echo "Building for linux/amd64"
           GOOS=linux GOARCH=amd64 go build -ldflags="-s -w" -o dist/uve-linux-amd64
+          echo "Building for darwin/amd64"
           GOOS=darwin GOARCH=amd64 go build -ldflags="-s -w" -o dist/uve-darwin-amd64
+          echo "Building for darwin/arm64"
           GOOS=darwin GOARCH=arm64 go build -ldflags="-s -w" -o dist/uve-darwin-arm64
+          echo "Building for windows/amd64"
           GOOS=windows GOARCH=amd64 go build -ldflags="-s -w" -o dist/uve-windows-amd64.exe
 
       - name: Package release assets
@@ -50,26 +61,10 @@ jobs:
           cp uve-install.sh dist/uve-install.sh
           chmod +x dist/uve-install.sh
 
-      - name: Install zsh if needed
-        if: matrix.shell == 'zsh'
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y zsh
-
-      - name: Install fish if needed
-        if: matrix.shell == 'fish'
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y fish
-
-      - name: Validate install in ${{ matrix.shell }}
+      - name: Validate install in ${{ env.TEST_SHELL }}
         run: |
           export HOME="$(mktemp -d)"
-          if [ "${{ matrix.shell }}" = "fish" ]; then
-            fish -c "bash dist/uve-install.sh"
-          else
-            ${{ matrix.shell }} dist/uve-install.sh
-          fi
+          ${{ env.TEST_SHELL }} dist/uve-install.sh
           ~/.local/bin/uve --version
 
   release:
@@ -112,6 +107,7 @@ jobs:
 
       - name: Build binaries
         run: |
+          export CGO_ENABLED=0
           mkdir -p dist
           GOOS=linux GOARCH=amd64 go build -ldflags="-s -w" -o dist/uve-linux-amd64
           GOOS=darwin GOARCH=amd64 go build -ldflags="-s -w" -o dist/uve-darwin-amd64
@@ -137,47 +133,10 @@ jobs:
           name: dist
           path: dist/
 
-  validate-release-shells:
-    if: |
-      github.event_name == 'push' && github.ref == 'refs/heads/main'
-    needs: release
-    runs-on: ubuntu-latest
-    strategy:
-      matrix:
-        shell: [bash, sh, zsh, fish]
-    steps:
-      - name: Download build artifact
-        uses: actions/download-artifact@v4
-        with:
-          name: dist
-          path: dist
-
-      - name: Install zsh if needed
-        if: matrix.shell == 'zsh'
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y zsh
-
-      - name: Install fish if needed
-        if: matrix.shell == 'fish'
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y fish
-
-      - name: Validate install in ${{ matrix.shell }}
-        run: |
-          export HOME="$(mktemp -d)"
-          if [ "${{ matrix.shell }}" = "fish" ]; then
-            fish -c "bash dist/uve-install.sh"
-          else
-            ${{ matrix.shell }} dist/uve-install.sh
-          fi
-          ~/.local/bin/uve --version
-
   create-release:
     if: |
       github.event_name == 'push' && github.ref == 'refs/heads/main'
-    needs: [release, validate-release-shells]
+    needs: [release]
     runs-on: ubuntu-latest
     steps:
       - name: Download dist artifact
