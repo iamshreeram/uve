@@ -51,4 +51,4 @@ python -c "import numpy; print(numpy.__version__)"
 ```
 
 ### Future 
-1. Clone environment
+1. Clone existing environment into new one 
