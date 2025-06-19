@@ -13,6 +13,8 @@ function uve
                 return 1
             end
 
+            # Always deactivate first
+            eval (uve-bin deactivate)
             # Evaluate the activation commands directly
             eval (uve-bin activate $argv[2])
             
