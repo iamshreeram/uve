@@ -13,6 +13,8 @@ uve() {
                 echo "Error: Environment name required"
                 return 1
             fi
+            # Always deactivate before activating a new env
+            eval "$(uve-bin deactivate)"
             eval "$(uve-bin activate "$2")"
             # Update prompt to show environment name
             export PS1="($2) $UVE_OLD_PS1"

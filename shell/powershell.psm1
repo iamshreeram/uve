@@ -25,6 +25,10 @@ function uve {
             }
 
             $envName = $AllArgs[1]
+            # Always deactivate first
+            $deactivateScript = uve-bin deactivate | Out-String
+            if ($LASTEXITCODE -eq 0) { Invoke-Expression $deactivateScript }
+
             # Call uve-bin activate <envName>, capture output as a single string
             $activateScript = uve-bin activate $envName | Out-String
 
