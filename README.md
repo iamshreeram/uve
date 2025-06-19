@@ -51,5 +51,7 @@ python -c "import numpy; print(numpy.__version__)"
 ```
 
 ### Future enhancements
-1. Enable the activation of a new environment without requiring the deactivation of the currently active environment.
-2. Provide functionality to clone or copy an existing environment into a new one, facilitating easier environment management.
+1. Automate the installation of the relevant UV program and configure its path within the environment variables for smoother setup.
+2. Expand support to ensure compatibility across all major operating systems (macOS, Linux, Windows) and various shell environments (bash, sh, zsh, fish), providing a seamless experience for all users.
+3. Enable the activation of a new environment without requiring the deactivation of the currently active environment.
+4. Provide functionality to clone or copy an existing environment into a new one, facilitating easier environment management.
