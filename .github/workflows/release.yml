@@ -71,7 +71,6 @@ jobs:
           export HOME="$(mktemp -d)"
           export PATH="$HOME/.local/bin:$PATH"
           ${{ matrix.shell }} dist/uve-install.sh
-          echo "Script is complete. Moving to validation of uve"
           uve version
   release:
     if: |
